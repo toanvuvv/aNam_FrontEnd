@@ -1,14 +1,14 @@
 import React from 'react';
 import { Modal, Typography, Alert } from 'antd';
-import type { PreparationSummary } from '../../types';
-import PreparationSummary from './PreparationSummary';
+import type { PreparationSummary as PreparationSummaryType } from '../../types';
+import PreparationSummaryComponent from './PreparationSummary';
 
 const { Title } = Typography;
 
 interface Props {
   visible: boolean;
   onClose: () => void;
-  summary: PreparationSummary | undefined;
+  summary: PreparationSummaryType | undefined;
   user?: { name?: string; username?: string };
   lastPreparedAt?: string;
 }
@@ -38,7 +38,7 @@ const PreparationDetailModal: React.FC<Props> = ({ visible, onClose, summary, us
       width={900}
     >
       {summary ? (
-        <PreparationSummary summary={summary} />
+        <PreparationSummaryComponent summary={summary} />
       ) : (
         <Alert
           message="Không có thông tin tóm tắt"
