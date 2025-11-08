@@ -14,9 +14,10 @@ COPY . .
 # Build the application
 RUN npm run build
 
-# Expose port
-EXPOSE 4173
+# Railway sẽ tự động route traffic đến port mà ứng dụng đang listen
+# Expose port (Railway sẽ tự động detect port thực tế từ biến môi trường PORT)
+EXPOSE 8080
 
-# Start vite preview server
-CMD ["npm", "run", "preview", "--", "--host", "0.0.0.0", "--port", "4173"]
+# Start vite preview server với port từ biến môi trường PORT (Railway set PORT=8080)
+CMD sh -c "npm run preview -- --host 0.0.0.0 --port ${PORT:-8080}"
 
