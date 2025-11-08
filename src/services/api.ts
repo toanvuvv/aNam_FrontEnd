@@ -1,7 +1,13 @@
 import axios from 'axios';
 import type { PrepareProductsDto, UpdateLiveSessionConfigDto, RealCartResult, ClearRealCartResult } from '../types';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://anambackend-production.up.railway.app';
+
+// Log để debug (chỉ trong development)
+if (import.meta.env.DEV) {
+  console.log('🔗 API Base URL:', API_BASE_URL);
+  console.log('🔗 VITE_API_BASE_URL env:', import.meta.env.VITE_API_BASE_URL);
+}
 
 const api = axios.create({
   baseURL: API_BASE_URL,

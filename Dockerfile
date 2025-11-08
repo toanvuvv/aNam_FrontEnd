@@ -11,7 +11,12 @@ RUN npm ci
 # Copy source code
 COPY . .
 
-# Build the application
+# Build the application với biến môi trường VITE_API_BASE_URL
+# Railway sẽ tự động inject biến môi trường vào container
+# Vite sẽ đọc biến môi trường từ process.env tại build time
+# Sử dụng ARG để nhận build args từ Railway (nếu có)
+ARG VITE_API_BASE_URL
+ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
 RUN npm run build
 
 # Railway sẽ tự động route traffic đến port mà ứng dụng đang listen
