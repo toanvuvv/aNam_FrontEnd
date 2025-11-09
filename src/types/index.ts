@@ -21,6 +21,7 @@ export interface User {
   lastRealCartAddedAt?: string;
   lastRealCartSummary?: RealCartSummary;
   currentLiveSessionId?: number;
+  cookieStatus?: 'valid' | 'invalid';
 }
 
 // Product Link Interfaces
@@ -109,9 +110,9 @@ export interface PrepareProductsDto {
 export interface PreparedItem {
   itemId: string;
   shopId: string;
-  source: 'live' | 'warehouse';
+  source: 'live' | 'warehouse' | 'sample';
   productName?: string;
-  productLinkId: string; // ObjectId
+  productLinkId: string | null; // ObjectId hoặc null nếu sample không có trong warehouse
   atc?: number;
   revenue?: number;
 }
@@ -126,6 +127,12 @@ export interface PreparationSummary {
     totalItemsFromLive: number;
     itemsMappedToWarehouse: number;
   };
+  sample?: {
+    totalSamples: number;
+    itemsAdded: number;
+    itemsSkippedInvalid: number;
+    itemsSkippedDuplicate: number;
+  };
   warehouse: {
     totalAvailable: number;
     randomSelected: number;
@@ -133,8 +140,10 @@ export interface PreparationSummary {
   final: {
     totalItems: number;
     itemsFromLive: number;
+    itemsFromSample?: number;
     itemsFromWarehouse: number;
   };
+  deletedUnusedLinks?: number;
 }
 
 export interface PrepareProductsResult {

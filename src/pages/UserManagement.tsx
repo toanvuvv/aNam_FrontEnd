@@ -20,7 +20,7 @@ import {
   Alert,
   Checkbox,
 } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, UserOutlined, LinkOutlined, ExperimentOutlined, EyeOutlined, EyeInvisibleOutlined, CopyOutlined, RocketOutlined, InfoCircleOutlined, DownOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, DeleteOutlined, UserOutlined, LinkOutlined, ExperimentOutlined, EyeOutlined, EyeInvisibleOutlined, CopyOutlined, RocketOutlined, InfoCircleOutlined, DownOutlined, CheckCircleOutlined, CloseCircleOutlined, ReloadOutlined } from '@ant-design/icons';
 import { userApi, productLinkApi, sampleProductApi } from '../services/api';
 import type { User, CreateUserDto, ProductLink, SampleProduct } from '../types';
 import PrepareProductsModal from '../components/UserManagement/PrepareProductsModal';
@@ -94,6 +94,9 @@ const UserManagement: React.FC = () => {
 
   // States cho live status
   const [liveStatusMap, setLiveStatusMap] = useState<Record<string, { isLive: boolean; sessionId?: number; sessionTitle?: string; loading?: boolean }>>({});
+  
+  // States cho cookie status checking
+  const [cookieCheckingMap, setCookieCheckingMap] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     fetchUsers();
@@ -141,6 +144,28 @@ const UserManagement: React.FC = () => {
     });
 
     await Promise.all(promises);
+  };
+
+  // Handler để check cookies
+  const handleCheckCookies = async (user: User) => {
+    const userId = user.id || user._id;
+    
+    setCookieCheckingMap(prev => ({ ...prev, [userId]: true }));
+    
+    try {
+      const response = await userApi.checkCookies(userId);
+      const result = response.data;
+      
+      message.success(result.message || `Cookies ${result.status === 'valid' ? 'hợp lệ' : 'không hợp lệ'}`);
+      
+      // Refresh user list để cập nhật cookieStatus
+      await fetchUsers();
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.message || error?.message || 'Lỗi khi kiểm tra cookies';
+      message.error(errorMessage);
+    } finally {
+      setCookieCheckingMap(prev => ({ ...prev, [userId]: false }));
+    }
   };
 
   // Parse Shopee URL để lấy shopId và itemId
@@ -803,6 +828,31 @@ const UserManagement: React.FC = () => {
       },
     },
     {
+      title: 'Trạng thái Cookies',
+      key: 'cookieStatus',
+      width: 150,
+      align: 'center' as const,
+      render: (_: any, record: User) => {
+        const userId = record.id || record._id;
+        const isChecking = cookieCheckingMap[userId];
+        const status = record.cookieStatus;
+        
+        if (isChecking) {
+          return <Tag color="processing" icon={<ReloadOutlined spin />}>Đang kiểm tra...</Tag>;
+        }
+        
+        if (status === 'valid') {
+          return <Tag color="success" icon={<CheckCircleOutlined />}>Hợp lệ</Tag>;
+        }
+        
+        if (status === 'invalid') {
+          return <Tag color="error" icon={<CloseCircleOutlined />}>Không hợp lệ</Tag>;
+        }
+        
+        return <Tag color="default">Chưa kiểm tra</Tag>;
+      },
+    },
+    {
       title: 'Link chuẩn bị hiện tại',
       key: 'currentCartItems',
       width: 180,
@@ -885,7 +935,7 @@ const UserManagement: React.FC = () => {
     {
       title: 'Hành động',
       key: 'action',
-      width: 480,
+      width: 580,
       align: 'center' as const,
       render: (_: any, record: User) => {
         const userId = record.id || record._id;
@@ -924,7 +974,19 @@ const UserManagement: React.FC = () => {
               </Button>
             </Space.Compact>
             
-            {/* Nhóm 3: Xem, Sửa, Xóa */}
+            {/* Nhóm 3: Check Cookies */}
+            <Button
+              size="small"
+              icon={<ReloadOutlined />}
+              onClick={() => handleCheckCookies(record)}
+              loading={cookieCheckingMap[userId]}
+              type={record.cookieStatus === 'invalid' ? 'primary' : 'default'}
+              danger={record.cookieStatus === 'invalid'}
+            >
+              Check Cookies
+            </Button>
+            
+            {/* Nhóm 4: Xem, Sửa, Xóa */}
             <Space.Compact>
               <Button
                 type={isShowing ? 'default' : 'primary'}
@@ -1350,7 +1412,7 @@ const UserManagement: React.FC = () => {
                 key: 'links',
                 label: (
                   <span>
-                    <LinkOutlined /> Kho Link ({userProductLinks.length})
+                    <LinkOutlined /> Kho Link ({userProductLinks.filter(link => link.isAssigned).length} đã gán / {userProductLinks.filter(link => !link.isAssigned).length} chưa gán)
                   </span>
                 ),
                 children: (

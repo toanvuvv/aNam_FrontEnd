@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, Form, Button, message, Spin, Alert } from 'antd';
+import { DeleteOutlined } from '@ant-design/icons';
 import type { User, PrepareProductsResult, PrepareProductsDto } from '../../types';
 import { liveSessionConfigApi, userApi } from '../../services/api';
 import LiveSessionConfigForm from './LiveSessionConfigForm';
@@ -65,7 +66,15 @@ const PrepareProductsModal: React.FC<Props> = ({ visible, onClose, user, onSucce
         await liveSessionConfigApi.update(user.id || user._id, values);
       }
       
-      message.success('Đã chuẩn bị sản phẩm thành công!');
+      // Hiển thị thông báo về việc xóa link không được dùng
+      if (apiResult.data.summary?.deletedUnusedLinks && apiResult.data.summary.deletedUnusedLinks > 0) {
+        message.warning(
+          `Đã chuẩn bị sản phẩm thành công! Đã xóa ${apiResult.data.summary.deletedUnusedLinks} link không được sử dụng từ lần chuẩn bị trước.`,
+          5
+        );
+      } else {
+        message.success('Đã chuẩn bị sản phẩm thành công!');
+      }
       // Không gọi onSuccess ngay để user có thể xem kết quả trước
     } catch (err: any) {
       console.error('[DEBUG] Error preparing products:', err);
@@ -122,6 +131,19 @@ const PrepareProductsModal: React.FC<Props> = ({ visible, onClose, user, onSucce
         
         {result ? (
           <div>
+            {result.summary?.deletedUnusedLinks && result.summary.deletedUnusedLinks > 0 && (
+              <Alert
+                message={
+                  <span>
+                    <DeleteOutlined /> Đã xóa <strong>{result.summary.deletedUnusedLinks}</strong> link không được sử dụng
+                  </span>
+                }
+                description="Các link trong cartAssignment cũ mà không được sử dụng lại trong lần chuẩn bị này đã được xóa khỏi kho."
+                type="info"
+                showIcon
+                style={{ marginBottom: 16 }}
+              />
+            )}
             <PreparationSummary summary={result.summary} />
             {result.items && result.items.length > 0 && (
               <PreparedItemsList items={result.items} />

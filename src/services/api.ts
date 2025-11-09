@@ -27,6 +27,7 @@ export const userApi = {
   clearRealCart: (id: string) => api.post<ClearRealCartResult>(`/users/${id}/clear-real-cart`),
   addToRealCart: (id: string) => api.post<RealCartResult>(`/users/${id}/add-to-real-cart`),
   checkLiveStatus: (id: string) => api.get<{ isLive: boolean; sessionId?: number; sessionTitle?: string }>(`/users/${id}/check-live-status`),
+  checkCookies: (id: string) => api.post<{ status: 'valid' | 'invalid'; message: string; sessionCount: number }>(`/users/${id}/check-cookies`),
 };
 
 // Product Link API

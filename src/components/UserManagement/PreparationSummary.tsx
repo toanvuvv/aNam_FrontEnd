@@ -1,6 +1,6 @@
 import React from 'react';
-import { Card, Descriptions, Statistic, Row, Col, Typography, Tag } from 'antd';
-import { ShoppingCartOutlined, PlaySquareOutlined, DatabaseOutlined, CheckCircleOutlined } from '@ant-design/icons';
+import { Card, Descriptions, Statistic, Row, Col, Typography, Tag, Alert } from 'antd';
+import { ShoppingCartOutlined, PlaySquareOutlined, DatabaseOutlined, CheckCircleOutlined, ExperimentOutlined, DeleteOutlined } from '@ant-design/icons';
 import type { PreparationSummary as SummaryData } from '../../types';
 
 const { Title } = Typography;
@@ -44,6 +44,23 @@ const PreparationSummary: React.FC<Props> = ({ summary }) => {
           </Col>
         )}
 
+        {summary.sample && (
+          <Col span={24}>
+            <Card size="small" style={{ background: '#fafafa' }}>
+              <Descriptions title={<><ExperimentOutlined /> Lấy từ Sản phẩm Mẫu</>} size="small" column={2}>
+                <Descriptions.Item label="Tổng sản phẩm mẫu">{summary.sample.totalSamples || 0}</Descriptions.Item>
+                <Descriptions.Item label="Đã thêm vào giỏ"><strong>{summary.sample.itemsAdded || 0}</strong></Descriptions.Item>
+                {summary.sample.itemsSkippedInvalid > 0 && (
+                  <Descriptions.Item label="Bỏ qua (không hợp lệ)"><Tag color="orange">{summary.sample.itemsSkippedInvalid}</Tag></Descriptions.Item>
+                )}
+                {summary.sample.itemsSkippedDuplicate > 0 && (
+                  <Descriptions.Item label="Bỏ qua (trùng với Live)"><Tag color="blue">{summary.sample.itemsSkippedDuplicate}</Tag></Descriptions.Item>
+                )}
+              </Descriptions>
+            </Card>
+          </Col>
+        )}
+
         {summary.warehouse && (
           <Col span={24}>
             <Card size="small" style={{ background: '#fafafa' }}>
@@ -63,9 +80,28 @@ const PreparationSummary: React.FC<Props> = ({ summary }) => {
                       <Statistic value={summary.final.totalItems || 0} suffix="sản phẩm" valueStyle={{ color: '#3f8600', fontSize: 18 }} />
                   </Descriptions.Item>
                   <Descriptions.Item label="- Từ Live Session">{summary.final.itemsFromLive || 0}</Descriptions.Item>
+                  {summary.final.itemsFromSample !== undefined && (
+                    <Descriptions.Item label="- Từ Sản phẩm Mẫu">{summary.final.itemsFromSample}</Descriptions.Item>
+                  )}
                   <Descriptions.Item label="- Từ Kho Link">{summary.final.itemsFromWarehouse || 0}</Descriptions.Item>
               </Descriptions>
             </Card>
+          </Col>
+        )}
+
+        {summary.deletedUnusedLinks !== undefined && summary.deletedUnusedLinks > 0 && (
+          <Col span={24}>
+            <Alert
+              message={
+                <span>
+                  <DeleteOutlined /> Đã xóa <strong>{summary.deletedUnusedLinks}</strong> link không được sử dụng từ lần chuẩn bị trước
+                </span>
+              }
+              description="Các link trong cartAssignment cũ mà không được sử dụng lại trong lần chuẩn bị này đã được xóa khỏi kho."
+              type="info"
+              showIcon
+              style={{ marginTop: 16 }}
+            />
           </Col>
         )}
       </Row>

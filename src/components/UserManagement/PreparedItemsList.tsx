@@ -1,7 +1,7 @@
 import React from 'react';
 import { Table, Tag, Typography } from 'antd';
 import type { PreparedItem } from '../../types';
-import { PlaySquareOutlined, DatabaseOutlined } from '@ant-design/icons';
+import { PlaySquareOutlined, DatabaseOutlined, ExperimentOutlined } from '@ant-design/icons';
 
 const { Text } = Typography;
 
@@ -15,14 +15,27 @@ const PreparedItemsList: React.FC<Props> = ({ items }) => {
       title: 'Nguồn',
       dataIndex: 'source',
       key: 'source',
-      width: 100,
-      render: (source: 'live' | 'warehouse') => {
-        const isLive = source === 'live';
-        return (
-          <Tag icon={isLive ? <PlaySquareOutlined /> : <DatabaseOutlined />} color={isLive ? 'red' : 'blue'}>
-            {isLive ? 'Live' : 'Kho'}
-          </Tag>
-        );
+      width: 120,
+      render: (source: 'live' | 'warehouse' | 'sample') => {
+        if (source === 'live') {
+          return (
+            <Tag icon={<PlaySquareOutlined />} color="red">
+              Live
+            </Tag>
+          );
+        } else if (source === 'sample') {
+          return (
+            <Tag icon={<ExperimentOutlined />} color="purple">
+              Mẫu
+            </Tag>
+          );
+        } else {
+          return (
+            <Tag icon={<DatabaseOutlined />} color="blue">
+              Kho
+            </Tag>
+          );
+        }
       },
     },
     {
