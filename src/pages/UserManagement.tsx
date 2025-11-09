@@ -181,6 +181,8 @@ const UserManagement: React.FC = () => {
       let successCount = 0;
       let errorCount = 0;
 
+      const errorMessages: string[] = [];
+      
       for (const url of links) {
         try {
           const parsed = parseShopeeUrl(url);
@@ -198,6 +200,10 @@ const UserManagement: React.FC = () => {
         } catch (error: any) {
           console.error(`Lỗi khi thêm link ${url}:`, error);
           errorCount++;
+          
+          // Lấy thông báo lỗi từ response
+          const errorMsg = error?.response?.data?.message || error?.message || 'Link đã tồn tại hoặc không thể thêm';
+          errorMessages.push(`${url}: ${errorMsg}`);
         }
       }
 
@@ -205,7 +211,12 @@ const UserManagement: React.FC = () => {
         message.success(`Đã thêm thành công ${successCount} link${successCount > 1 ? 's' : ''}`);
       }
       if (errorCount > 0) {
-        message.warning(`${errorCount} link${errorCount > 1 ? 's' : ''} không thể thêm`);
+        // Hiển thị thông báo chi tiết nếu có ít lỗi, hoặc tổng hợp nếu nhiều lỗi
+        if (errorMessages.length <= 5) {
+          errorMessages.forEach(msg => message.warning(msg, 5));
+        } else {
+          message.warning(`${errorCount} link${errorCount > 1 ? 's' : ''} không thể thêm. Các link này có thể đã tồn tại trong kho link của nick khác hoặc trong kho sản phẩm mẫu.`, 8);
+        }
       }
 
       setAddLinkModalVisible(false);
