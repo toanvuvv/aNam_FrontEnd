@@ -20,7 +20,7 @@ import {
   Alert,
   Checkbox,
 } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, UserOutlined, LinkOutlined, ExperimentOutlined, EyeOutlined, EyeInvisibleOutlined, CopyOutlined, RocketOutlined, InfoCircleOutlined, DownOutlined, CheckCircleOutlined, CloseCircleOutlined, ReloadOutlined, ShoppingCartOutlined, ShoppingOutlined, DollarOutlined, ClockCircleOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, DeleteOutlined, UserOutlined, LinkOutlined, ExperimentOutlined, EyeOutlined, EyeInvisibleOutlined, CopyOutlined, RocketOutlined, InfoCircleOutlined, DownOutlined, CheckCircleOutlined, CloseCircleOutlined, ReloadOutlined, ShoppingCartOutlined, ShoppingOutlined, DollarOutlined } from '@ant-design/icons';
 import { userApi, productLinkApi, sampleProductApi } from '../services/api';
 import type { User, CreateUserDto, ProductLink, SampleProduct, SessionInfo } from '../types';
 import PrepareProductsModal from '../components/UserManagement/PrepareProductsModal';
