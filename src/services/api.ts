@@ -28,6 +28,7 @@ export const userApi = {
   addToRealCart: (id: string) => api.post<RealCartResult>(`/users/${id}/add-to-real-cart`),
   checkLiveStatus: (id: string) => api.get<{ isLive: boolean; sessionId?: number; sessionTitle?: string }>(`/users/${id}/check-live-status`),
   checkCookies: (id: string) => api.post<{ status: 'valid' | 'invalid'; message: string; sessionCount: number }>(`/users/${id}/check-cookies`),
+  getSessionList: (id: string) => api.get<{ sessions: Array<{ sessionId: number; title: string; duration: number; startTime?: number; atc?: number; confirmedOrders?: number; confirmedSales?: number }> }>(`/users/${id}/session-list`),
 };
 
 // Product Link API

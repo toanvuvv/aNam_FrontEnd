@@ -34,7 +34,7 @@ const PrepareProductsModal: React.FC<Props> = ({ visible, onClose, user, onSucce
         .catch(() => {
           message.warning('Không tìm thấy cấu hình đã lưu, sử dụng giá trị mặc định.');
           // Set giá trị mặc định nếu không có config
-          form.setFieldsValue({ numberOfSessions: 3, minAtc: 5, minRevenue: 0 });
+          form.setFieldsValue({ numberOfSessions: 3, minAtc: 5, minRevenue: 0, productClicks: 100 });
         })
         .finally(() => setLoadingConfig(false));
     }

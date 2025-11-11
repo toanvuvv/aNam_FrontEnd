@@ -90,6 +90,7 @@ export interface LiveSessionConfig {
   numberOfSessions: number;
   minAtc: number;
   minRevenue: number;
+  productClicks: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -98,6 +99,7 @@ export interface UpdateLiveSessionConfigDto {
   numberOfSessions?: number;
   minAtc?: number;
   minRevenue?: number;
+  productClicks?: number;
 }
 
 // Cart Preparation
@@ -105,6 +107,7 @@ export interface PrepareProductsDto {
   numberOfSessions?: number;
   minAtc?: number;
   minRevenue?: number;
+  productClicks?: number;
 }
 
 export interface PreparedItem {
@@ -193,4 +196,14 @@ export interface LiveStatus {
   isLive: boolean;
   sessionId?: number;
   sessionTitle?: string;
+}
+
+export interface SessionInfo {
+  sessionId: number;
+  title: string;
+  duration: number;
+  startTime?: number;
+  atc?: number;
+  confirmedOrders?: number;
+  confirmedSales?: number;
 }

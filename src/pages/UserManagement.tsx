@@ -20,9 +20,9 @@ import {
   Alert,
   Checkbox,
 } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, UserOutlined, LinkOutlined, ExperimentOutlined, EyeOutlined, EyeInvisibleOutlined, CopyOutlined, RocketOutlined, InfoCircleOutlined, DownOutlined, CheckCircleOutlined, CloseCircleOutlined, ReloadOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, DeleteOutlined, UserOutlined, LinkOutlined, ExperimentOutlined, EyeOutlined, EyeInvisibleOutlined, CopyOutlined, RocketOutlined, InfoCircleOutlined, DownOutlined, CheckCircleOutlined, CloseCircleOutlined, ReloadOutlined, ShoppingCartOutlined, ShoppingOutlined, DollarOutlined, ClockCircleOutlined } from '@ant-design/icons';
 import { userApi, productLinkApi, sampleProductApi } from '../services/api';
-import type { User, CreateUserDto, ProductLink, SampleProduct } from '../types';
+import type { User, CreateUserDto, ProductLink, SampleProduct, SessionInfo } from '../types';
 import PrepareProductsModal from '../components/UserManagement/PrepareProductsModal';
 import PreparationDetailModal from '../components/UserManagement/PreparationDetailModal';
 import RealCartDetailModal from '../components/UserManagement/RealCartDetailModal';
@@ -98,14 +98,22 @@ const UserManagement: React.FC = () => {
   // States cho cookie status checking
   const [cookieCheckingMap, setCookieCheckingMap] = useState<Record<string, boolean>>({});
 
+  // States cho session list
+  const [sessionListMap, setSessionListMap] = useState<Record<string, SessionInfo[]>>({});
+  const [sessionListLoadingMap, setSessionListLoadingMap] = useState<Record<string, boolean>>({});
+
+  // States cho modal quản lý giỏ hàng và chuẩn bị sản phẩm
+  const [managementModalVisible, setManagementModalVisible] = useState(false);
+
   useEffect(() => {
     fetchUsers();
   }, []);
 
-  // Check live status cho tất cả users khi load
+  // Check live status và lấy session list cho tất cả users khi load
   useEffect(() => {
     if (users.length > 0) {
       checkAllLiveStatus();
+      fetchAllSessionLists();
     }
   }, [users]);
 
@@ -140,6 +148,33 @@ const UserManagement: React.FC = () => {
             loading: false,
           },
         }));
+      }
+    });
+
+    await Promise.all(promises);
+  };
+
+  const fetchAllSessionLists = async () => {
+    // Lấy session list cho từng user (parallel)
+    const promises = users.map(async (user) => {
+      const userId = user.id || user._id;
+      
+      setSessionListLoadingMap(prev => ({ ...prev, [userId]: true }));
+
+      try {
+        const response = await userApi.getSessionList(userId);
+        setSessionListMap(prev => ({
+          ...prev,
+          [userId]: response.data.sessions || [],
+        }));
+      } catch (error) {
+        // Nếu lỗi, để mảng rỗng
+        setSessionListMap(prev => ({
+          ...prev,
+          [userId]: [],
+        }));
+      } finally {
+        setSessionListLoadingMap(prev => ({ ...prev, [userId]: false }));
       }
     });
 
@@ -806,25 +841,170 @@ const UserManagement: React.FC = () => {
     {
       title: 'Trạng thái Live',
       key: 'liveStatus',
-      width: 150,
-      align: 'center' as const,
+      width: 300,
+      align: 'left' as const,
       render: (_: any, record: User) => {
         const userId = record.id || record._id;
         const status = liveStatusMap[userId];
+        const sessions = sessionListMap[userId] || [];
+        const isLoading = sessionListLoadingMap[userId];
         
-        if (!status || status.loading) {
+        if (!status || status.loading || isLoading) {
           return <Tag color="default">Đang kiểm tra...</Tag>;
         }
         
-        if (status.isLive) {
-          return (
-            <Tooltip title={status.sessionTitle ? `Session: ${status.sessionTitle}` : `Session ID: ${status.sessionId}`}>
-              <Tag color="green">LIVE</Tag>
-            </Tooltip>
-          );
-        }
+        // Chọn phiên để hiển thị:
+        // - Nếu có phiên đang live (duration = 0) -> dùng phiên này (màu xanh)
+        // - Nếu không có -> dùng phiên gần nhất (phần tử đầu tiên) và hiển thị màu cam nhạt
+        const liveSession = sessions.find(s => s.duration === 0);
+        const displaySession = liveSession || sessions[0];
+        if (!displaySession) return <Tag color="default">Không có session</Tag>;
+        const isLiveNow = displaySession.duration === 0;
+        const accentColor = isLiveNow ? '#22c55e' : '#fb923c';
+        const bgColor = isLiveNow ? '#ecfdf3' : '#fff7ed';
+        const borderColor = isLiveNow ? '#bbf7d0' : '#fed7aa';
+        const chipBg = isLiveNow ? '#dcfce7' : '#ffedd5';
         
-        return <Tag color="red">Không Live</Tag>;
+        // Format số tiền
+        const formatCurrency = (amount?: number) => {
+          if (!amount) return '0 ₫';
+          return new Intl.NumberFormat('vi-VN').format(amount) + ' ₫';
+        };
+        
+        // Format thời gian
+        const formatTime = (timestamp?: number) => {
+          if (!timestamp) return '';
+          const date = new Date(timestamp);
+          const time = date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+          const dateStr = date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+          return `${time} ${dateStr}`;
+        };
+        
+        return (
+          <div style={{ 
+            background: bgColor, 
+            border: `1px solid ${borderColor}`, 
+            borderRadius: '8px', 
+            padding: '10px',
+            minWidth: '280px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+            boxShadow: '0 2px 6px rgba(15, 23, 42, 0.06)'
+          }}>
+            {/* Header gọn */}
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'space-between',
+              gap: '8px'
+            }}>
+              <div style={{ 
+                display: 'inline-flex', 
+                alignItems: 'center', 
+                background: chipBg,
+                color: accentColor,
+                borderRadius: '6px',
+                padding: '4px 10px',
+                fontWeight: 600,
+                fontSize: '11px',
+                gap: '4px'
+              }}>
+                <CheckCircleOutlined style={{ color: accentColor, fontSize: '12px' }} />
+                <span>#{displaySession.sessionId}</span>
+              </div>
+              {displaySession.startTime && (
+                <span style={{ fontSize: '10px', color: '#64748b' }}>
+                  {formatTime(displaySession.startTime)}
+                </span>
+              )}
+            </div>
+            
+            {/* Thông tin session gọn */}
+            <div style={{
+              padding: '6px 8px',
+              borderRadius: '6px',
+              background: 'rgba(255,255,255,0.7)',
+              border: `1px dashed ${borderColor}`
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '2px' }}>
+                <span style={{ fontSize: '11px', fontWeight: 600, color: '#0f172a' }}>
+                  {displaySession.title || 'Không có tiêu đề'}
+                </span>
+              </div>
+            </div>
+            
+            {/* 3 số liệu gọn */}
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '4px'
+            }}>
+              {[
+                {
+                  label: 'Thêm giỏ',
+                  value: displaySession.atc || 0,
+                  icon: <ShoppingCartOutlined />,
+                  highlight: false,
+                },
+                {
+                  label: 'Đơn hàng',
+                  value: displaySession.confirmedOrders || 0,
+                  icon: <ShoppingOutlined />,
+                  highlight: false,
+                },
+                {
+                  label: 'Doanh số',
+                  value: formatCurrency(displaySession.confirmedSales),
+                  icon: <DollarOutlined />,
+                  highlight: true,
+                },
+              ].map((item, index) => (
+                <div
+                  key={index}
+                  style={{
+                    background: '#ffffff',
+                    borderRadius: '6px',
+                    border: `1px solid ${borderColor}`,
+                    padding: '6px 10px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '8px',
+                    boxShadow: item.highlight ? '0 2px 6px rgba(34, 197, 94, 0.1)' : 'none',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ 
+                      width: '24px',
+                      height: '24px',
+                      borderRadius: '50%',
+                      background: item.highlight ? accentColor : '#e2e8f0',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: item.highlight ? '#ffffff' : '#0f172a',
+                      fontSize: '11px'
+                    }}>
+                      {item.icon}
+                    </span>
+                    <span style={{ fontSize: '11px', fontWeight: 500, color: '#334155' }}>
+                      {item.label}
+                    </span>
+                  </div>
+                  <span style={{ 
+                    fontSize: item.highlight ? '14px' : '12px',
+                    fontWeight: 700,
+                    color: item.highlight ? accentColor : '#0f172a',
+                    whiteSpace: 'nowrap'
+                  }}>
+                    {item.value}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
       },
     },
     {
@@ -950,7 +1130,8 @@ const UserManagement: React.FC = () => {
               icon={<DownOutlined />}
               onClick={() => {
                 setSelectedUserForActions(userId);
-                message.info(`Đã chọn user: ${record.name || record.username || 'User'}. Sử dụng các nút ở cuối trang để thực hiện thao tác.`);
+                setManagementModalVisible(true);
+                message.info(`Đang mở quản lý giỏ hàng cho ${record.name || record.username || 'User'}`);
               }}
             >
               Thao tác
@@ -1791,11 +1972,13 @@ const UserManagement: React.FC = () => {
           fetchUsers(); // Tải lại danh sách user để cập nhật lastPreparedAt
         }}
       />
-
-      {/* Card quản lý giỏ hàng và chuẩn bị sản phẩm */}
-      <Card style={{ marginTop: 16 }}>
-        <Title level={4} style={{ marginBottom: 16 }}>Quản lý Giỏ Hàng & Chuẩn Bị Sản Phẩm</Title>
-        
+      <Modal
+        title="Quản lý Giỏ Hàng & Chuẩn Bị Sản Phẩm"
+        open={managementModalVisible}
+        onCancel={() => setManagementModalVisible(false)}
+        footer={null}
+        width={900}
+      >
         <Space direction="vertical" style={{ width: '100%' }} size="large">
           {/* Thông tin User đã chọn */}
           {selectedUserForActionsObj && (
@@ -1809,7 +1992,7 @@ const UserManagement: React.FC = () => {
           {!selectedUserForActionsObj && (
             <Alert
               message="Chưa chọn user"
-              description="Vui lòng chọn user từ nút 'Thao tác' trong bảng phía trên để thực hiện các thao tác."
+              description="Vui lòng chọn user từ nút 'Thao tác' trong bảng để thực hiện các thao tác."
               type="info"
               showIcon
             />
@@ -1936,7 +2119,7 @@ const UserManagement: React.FC = () => {
             </Card>
           </Space>
         </Space>
-      </Card>
+      </Modal>
 
       <PreparationDetailModal
         visible={preparationDetailModalVisible}

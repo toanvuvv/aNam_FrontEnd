@@ -53,6 +53,15 @@ const LiveSessionConfigForm: React.FC<Props> = ({ form, initialValues, onSaveCon
         />
       </Form.Item>
 
+      <Form.Item
+        name="productClicks"
+        label="Số lượt click sản phẩm tối thiểu"
+        rules={[{ required: true, message: 'Vui lòng nhập số lượt click tối thiểu!' }]}
+        tooltip="Sản phẩm sẽ được chọn nếu có số lượt click >= giá trị này. Nhập 0 để không lọc theo số lượt click."
+      >
+        <InputNumber min={0} style={{ width: '100%' }} />
+      </Form.Item>
+
       <Form.Item>
         <Checkbox checked={saveConfig} onChange={onSaveConfigChange}>
           Lưu lại cấu hình này cho lần sau
