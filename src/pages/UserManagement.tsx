@@ -22,6 +22,7 @@ import {
 } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, UserOutlined, LinkOutlined, ExperimentOutlined, EyeOutlined, EyeInvisibleOutlined, CopyOutlined, RocketOutlined, InfoCircleOutlined, DownOutlined, CheckCircleOutlined, CloseCircleOutlined, ReloadOutlined, ShoppingCartOutlined, ShoppingOutlined, DollarOutlined } from '@ant-design/icons';
 import { userApi, productLinkApi, sampleProductApi } from '../services/api';
+import { canUseChromeRuntime, getStoredExtensionId, pingExtension, requestCartPairs, saveExtensionId } from '../services/extension';
 import type { User, CreateUserDto, ProductLink, SampleProduct, SessionInfo } from '../types';
 import PrepareProductsModal from '../components/UserManagement/PrepareProductsModal';
 import PreparationDetailModal from '../components/UserManagement/PreparationDetailModal';
@@ -104,9 +105,86 @@ const UserManagement: React.FC = () => {
 
   // States cho modal quản lý giỏ hàng và chuẩn bị sản phẩm
   const [managementModalVisible, setManagementModalVisible] = useState(false);
+  const [extensionIdInput, setExtensionIdInput] = useState('');
+  const [extensionStatus, setExtensionStatus] = useState<'unknown' | 'connected' | 'error'>('unknown');
+  const [extensionChecking, setExtensionChecking] = useState(false);
+  const chromeRuntimeAvailable = typeof window !== 'undefined' && canUseChromeRuntime();
+  const extensionStatusDescription = {
+    unknown: 'Chưa kiểm tra kết nối extension',
+    connected: 'Extension đã sẵn sàng để nhận lệnh',
+    error: 'Không thể kết nối extension. Vui lòng kiểm tra ID và đảm bảo extension đang chạy',
+  } as const;
+
+  const verifyExtension = async (id: string, showToast = true) => {
+    const trimmedId = id.trim();
+    if (!trimmedId) {
+      setExtensionStatus('error');
+      if (showToast) {
+        message.error('Vui lòng nhập Extension ID hợp lệ');
+      }
+      throw new Error('Extension ID rỗng');
+    }
+
+    if (!canUseChromeRuntime()) {
+      setExtensionStatus('error');
+      if (showToast) {
+        message.error('Trình duyệt không hỗ trợ Chrome Extension API');
+      }
+      throw new Error('chrome.runtime không khả dụng');
+    }
+
+    setExtensionChecking(true);
+    try {
+      await pingExtension(trimmedId);
+      saveExtensionId(trimmedId);
+      setExtensionIdInput(trimmedId);
+      setExtensionStatus('connected');
+      if (showToast) {
+        message.success('Extension đã sẵn sàng');
+      }
+    } catch (error: any) {
+      setExtensionStatus('error');
+      if (showToast) {
+        message.error(`Không thể kết nối extension: ${error.message || error}`);
+      }
+      throw error;
+    } finally {
+      setExtensionChecking(false);
+    }
+  };
+
+  const handleSaveExtensionId = async () => {
+    try {
+      await verifyExtension(extensionIdInput, true);
+    } catch {
+      // Đã hiển thị message trong verifyExtension
+    }
+  };
+
+  const handleSaveOnlyExtensionId = () => {
+    const trimmedId = extensionIdInput.trim();
+    if (!trimmedId) {
+      message.warning('Vui lòng nhập Extension ID');
+      return;
+    }
+    saveExtensionId(trimmedId);
+    message.success('Đã lưu Extension ID vào localStorage');
+  };
 
   useEffect(() => {
     fetchUsers();
+  }, []);
+
+  useEffect(() => {
+    const storedId = getStoredExtensionId();
+    if (storedId) {
+      setExtensionIdInput(storedId);
+      if (canUseChromeRuntime()) {
+        verifyExtension(storedId, false).catch(() => {
+          // ignore auto verify errors
+        });
+      }
+    }
   }, []);
 
   // Check live status và lấy session list cho tất cả users khi load
@@ -219,64 +297,72 @@ const UserManagement: React.FC = () => {
     };
   };
 
-  // Xử lý thêm nhiều link kho
+  // Xử lý thêm nhiều link kho (sử dụng batch API để tối ưu)
   const handleAddLinks = async () => {
     if (!selectedUserForLink) {
       message.error('Vui lòng chọn user');
       return;
     }
 
-    const links = linkInput
+    const rawLinks = linkInput
       .split('\n')
       .map(line => line.trim())
       .filter(line => line.length > 0);
 
-    if (links.length === 0) {
+    if (rawLinks.length === 0) {
       message.error('Vui lòng nhập ít nhất một link');
       return;
     }
 
     try {
       setLoading(true);
-      let successCount = 0;
-      let errorCount = 0;
-
-      const errorMessages: string[] = [];
       
-      for (const url of links) {
-        try {
-          const parsed = parseShopeeUrl(url);
-          if (!parsed.shopId || !parsed.itemId) {
-            message.warning(`Link không hợp lệ (bỏ qua): ${url}`);
-            errorCount++;
-            continue;
-          }
-
-          await productLinkApi.create({
-            fullUrl: url,
-            userId: selectedUserForLink.id || selectedUserForLink._id,
-          });
-          successCount++;
-        } catch (error: any) {
-          console.error(`Lỗi khi thêm link ${url}:`, error);
-          errorCount++;
-          
-          // Lấy thông báo lỗi từ response
-          const errorMsg = error?.response?.data?.message || error?.message || 'Link đã tồn tại hoặc không thể thêm';
-          errorMessages.push(`${url}: ${errorMsg}`);
-        }
-      }
-
-      if (successCount > 0) {
-        message.success(`Đã thêm thành công ${successCount} link${successCount > 1 ? 's' : ''}`);
-      }
-      if (errorCount > 0) {
-        // Hiển thị thông báo chi tiết nếu có ít lỗi, hoặc tổng hợp nếu nhiều lỗi
-        if (errorMessages.length <= 5) {
-          errorMessages.forEach(msg => message.warning(msg, 5));
+      // Validate và filter các link hợp lệ
+      const validLinks: Array<{ fullUrl: string }> = [];
+      const invalidLinks: string[] = [];
+      
+      for (const url of rawLinks) {
+        const parsed = parseShopeeUrl(url);
+        if (!parsed.shopId || !parsed.itemId) {
+          invalidLinks.push(url);
         } else {
-          message.warning(`${errorCount} link${errorCount > 1 ? 's' : ''} không thể thêm. Các link này có thể đã tồn tại trong kho link của nick khác hoặc trong kho sản phẩm mẫu.`, 8);
+          validLinks.push({ fullUrl: url });
         }
+      }
+
+      // Hiển thị cảnh báo cho các link không hợp lệ
+      if (invalidLinks.length > 0) {
+        if (invalidLinks.length <= 5) {
+          invalidLinks.forEach(url => message.warning(`Link không hợp lệ (bỏ qua): ${url}`, 3));
+        } else {
+          message.warning(`${invalidLinks.length} link không hợp lệ đã được bỏ qua`, 5);
+        }
+      }
+
+      if (validLinks.length === 0) {
+        message.error('Không có link hợp lệ nào để thêm');
+        setLoading(false);
+        return;
+      }
+
+      // Sử dụng batch API để thêm tất cả link cùng lúc
+      const batchResult = await productLinkApi.batchCreate({
+        userId: selectedUserForLink.id || selectedUserForLink._id,
+        links: validLinks,
+      });
+
+      const { created, skipped } = batchResult.data;
+
+      if (created > 0) {
+        message.success(`Đã thêm thành công ${created} link${created > 1 ? 's' : ''} vào kho`);
+      }
+      
+      if (skipped > 0) {
+        message.info(`${skipped} link${skipped > 1 ? 's' : ''} đã tồn tại trong kho (đã bỏ qua)`);
+      }
+
+      if (created === 0 && skipped === validLinks.length) {
+        message.warning('Tất cả các link đã tồn tại trong kho link hoặc kho sản phẩm mẫu');
       }
 
       setAddLinkModalVisible(false);
@@ -285,8 +371,10 @@ const UserManagement: React.FC = () => {
       if (showDetailUserId && selectedUserForLink) {
         await fetchUserDetails(showDetailUserId);
       }
-    } catch (error) {
-      message.error('Lỗi khi thêm links');
+    } catch (error: any) {
+      console.error('Lỗi khi thêm links:', error);
+      const errorMessage = error?.response?.data?.message || error?.message || 'Lỗi khi thêm links';
+      message.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -775,6 +863,116 @@ const UserManagement: React.FC = () => {
     }
   };
 
+  const handleFetchCurrentCartState = async () => {
+    if (!selectedUserForActions) {
+      message.warning('Vui lòng chọn user');
+      return;
+    }
+
+    const userId = selectedUserForActions;
+    const extensionId = extensionIdInput.trim() || getStoredExtensionId();
+    if (!extensionId) {
+      message.warning('Vui lòng cấu hình Extension ID trước');
+      return;
+    }
+
+    if (!canUseChromeRuntime()) {
+      message.error('Trình duyệt không hỗ trợ Chrome extension API');
+      return;
+    }
+
+    const selectedUser = users.find(u => (u.id || u._id) === userId);
+
+    setRealCartActionModalVisible(true);
+    setRealCartActionLoading(true);
+    setRealCartActionLogs([]);
+    setRealCartActionProgress(undefined);
+
+    try {
+      addLog('Đang kiểm tra session live...', 'info');
+      const statusResponse = await userApi.checkLiveStatus(userId);
+      const statusData = statusResponse.data;
+
+      if (!statusData.isLive || !statusData.sessionId) {
+        throw new Error('Không tìm thấy session đang live (duration = 0). Hãy đảm bảo nick đang live.');
+      }
+
+      const sid = statusData.sessionId;
+      addLog(`Đã tìm thấy session #${sid}. Đang gửi yêu cầu tới extension...`, 'info');
+
+      const executionId = `web-sync-${Date.now()}`;
+      const pairs = await requestCartPairs(extensionId, {
+        sid,
+        executionId,
+        username: selectedUser?.username || selectedUser?.name || userId,
+      });
+
+      addLog(`Extension trả về ${pairs.length} sản phẩm. Đang xử lý dữ liệu...`, 'info');
+
+      const normalizedItems = pairs
+        .map((pair) => {
+          const rawItemId = pair.item_id ?? pair.itemId;
+          const rawShopId = pair.shop_id ?? pair.shopId;
+          const itemId = Number(rawItemId);
+          const shopId = Number(rawShopId);
+          if (Number.isNaN(itemId) || Number.isNaN(shopId)) {
+            return null;
+          }
+          return { itemId, shopId };
+        })
+        .filter((item): item is { itemId: number; shopId: number } => Boolean(item));
+
+      if (normalizedItems.length === 0) {
+        throw new Error('Không có sản phẩm hợp lệ để cập nhật giỏ hàng');
+      }
+
+      addLog('Đang cập nhật cartRealState lên backend...', 'info');
+      await userApi.update(userId, {
+        cartRealState: JSON.stringify(normalizedItems),
+      });
+
+      addLog(`Đã cập nhật cartRealState với ${normalizedItems.length} sản phẩm`, 'success');
+
+      // Thêm các link vào kho link (tự động bỏ qua link trùng)
+      addLog('Đang thêm các link vào kho link...', 'info');
+      try {
+        // Tạo URL từ itemId và shopId
+        const linksToAdd = normalizedItems.map(({ itemId, shopId }) => ({
+          fullUrl: `https://shopee.vn/product/${shopId}/${itemId}`,
+        }));
+
+        const batchResult = await productLinkApi.batchCreate({
+          userId,
+          links: linksToAdd,
+        });
+
+        if (batchResult.data.created > 0) {
+          addLog(`Đã thêm ${batchResult.data.created} link mới vào kho link`, 'success');
+        }
+        if (batchResult.data.skipped > 0) {
+          addLog(`${batchResult.data.skipped} link đã tồn tại trong kho (đã bỏ qua)`, 'info');
+        }
+      } catch (error: any) {
+        // Không fail toàn cục nếu thêm link lỗi
+        const errorMessage = error?.response?.data?.message || error?.message || 'Lỗi khi thêm link vào kho';
+        addLog(`Cảnh báo: ${errorMessage}`, 'error');
+      }
+
+      message.success(`Đã cập nhật giỏ hàng thật với ${normalizedItems.length} sản phẩm hiện tại`);
+
+      await fetchUsers();
+      if (showDetailUserId === userId) {
+        await fetchUserDetails(userId);
+      }
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.message || error?.message || 'Lỗi khi đồng bộ giỏ hàng';
+      addLog(`Lỗi: ${errorMessage}`, 'error');
+      message.error(errorMessage);
+    } finally {
+      setRealCartActionLoading(false);
+    }
+  };
+
   // Tính số link hiện tại trong giỏ (từ cartAssignment)
   const getCurrentCartItemsCount = (cartAssignment?: string): number => {
     if (!cartAssignment) return 0;
@@ -1208,6 +1406,69 @@ const UserManagement: React.FC = () => {
 
   return (
     <div>
+      <Card
+        title="Cấu hình Extension"
+        style={{ marginBottom: 16 }}
+        extra={
+          !chromeRuntimeAvailable && (
+            <Tag color="warning">Chrome runtime không khả dụng</Tag>
+          )
+        }
+      >
+        <Space direction="vertical" style={{ width: '100%' }} size="middle">
+          <Typography.Paragraph style={{ marginBottom: 0 }}>
+            Dán Extension ID (copy từ popup extension) để web có thể giao tiếp trực tiếp với extension đang lấy dữ liệu giỏ hàng.
+          </Typography.Paragraph>
+          <Input
+            placeholder="vd: abcdefghijklmnopqrstuvwxyz123456"
+            value={extensionIdInput}
+            onChange={(e) => setExtensionIdInput(e.target.value)}
+            disabled={extensionChecking}
+          />
+          <Space>
+            <Button
+              type="primary"
+              icon={<LinkOutlined />}
+              onClick={handleSaveExtensionId}
+              loading={extensionChecking}
+              disabled={!extensionIdInput || !chromeRuntimeAvailable}
+            >
+              Lưu & Ping Extension
+            </Button>
+            <Button
+              onClick={handleSaveOnlyExtensionId}
+              disabled={!extensionIdInput}
+            >
+              Chỉ lưu
+            </Button>
+            <Button
+              icon={<ReloadOutlined />}
+              onClick={() => verifyExtension(extensionIdInput, true)}
+              disabled={!extensionIdInput || extensionChecking || !chromeRuntimeAvailable}
+            >
+              Ping lại
+            </Button>
+          </Space>
+          <Alert
+            type={
+              !chromeRuntimeAvailable
+                ? 'warning'
+                : extensionStatus === 'connected'
+                  ? 'success'
+                  : extensionStatus === 'error'
+                    ? 'error'
+                    : 'info'
+            }
+            message={
+              !chromeRuntimeAvailable
+                ? 'Trình duyệt hiện tại không hỗ trợ giao tiếp với Chrome extension. Hãy mở trang này trong Chrome và bật extension.'
+                : extensionStatusDescription[extensionStatus]
+            }
+            showIcon
+          />
+        </Space>
+      </Card>
+
       <Card>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <Title level={3} style={{ margin: 0 }}>Quản lý User</Title>
@@ -2061,6 +2322,31 @@ const UserManagement: React.FC = () => {
                     disabled={!selectedUserForActions}
                   >
                     Chuẩn bị SP
+                  </Button>
+                </div>
+              </Space>
+            </Card>
+
+            {/* Lấy giỏ hàng hiện tại */}
+            <Card size="small" style={{ border: '1px solid #d9d9d9' }}>
+              <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <Typography.Text strong>Lấy giỏ hàng hiện tại</Typography.Text>
+                    <div style={{ marginTop: 4 }}>
+                      <Typography.Text type="secondary" style={{ fontSize: '12px' }}>
+                        Yêu cầu extension đọc giỏ hàng thật trên Shopee Live và cập nhật lại trường cartRealState của user.
+                      </Typography.Text>
+                    </div>
+                  </div>
+                  <Button
+                    icon={<ShoppingCartOutlined />}
+                    type="primary"
+                    onClick={handleFetchCurrentCartState}
+                    disabled={!selectedUserForActions || realCartActionLoading}
+                    loading={realCartActionLoading}
+                  >
+                    Lấy giỏ hiện tại
                   </Button>
                 </div>
               </Space>

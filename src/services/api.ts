@@ -36,6 +36,8 @@ export const productLinkApi = {
   getAll: (userId?: string) => api.get('/product-links', { params: { userId } }),
   getById: (id: string) => api.get(`/product-links/${id}`),
   create: (data: any) => api.post('/product-links', data),
+  batchCreate: (data: { userId: string; links: Array<{ fullUrl: string; productName?: string; description?: string }> }) => 
+    api.post<{ created: number; skipped: number; createdLinks: any[]; skippedUrls: string[] }>('/product-links/batch', data),
   update: (id: string, data: any) => api.patch(`/product-links/${id}`, data),
   delete: (id: string) => api.delete(`/product-links/${id}`),
   assignToCart: (id: string, cartAssignment: string) => 
