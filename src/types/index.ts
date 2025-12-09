@@ -207,3 +207,30 @@ export interface SessionInfo {
   confirmedOrders?: number;
   confirmedSales?: number;
 }
+
+// Swap Queue Interfaces
+export interface SwapQueueItem {
+  _id: string; // MongoDB ObjectId
+  id?: string; // Alias cho _id (nếu backend trả về id)
+  userId: string; // MongoDB ObjectId
+  status: 'pending' | 'processed' | 'fail';
+  priority?: number;
+  notes?: string;
+  errorMessage?: string;
+  processedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  user?: User;
+}
+
+export interface CreateSwapQueueDto {
+  userId: string; // MongoDB ObjectId (required)
+  priority?: number;
+  notes?: string;
+}
+
+export interface UpdateSwapQueueDto {
+  priority?: number;
+  notes?: string;
+  status?: 'pending' | 'processed' | 'fail';
+}

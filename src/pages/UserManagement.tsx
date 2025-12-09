@@ -21,14 +21,15 @@ import {
   Checkbox,
 } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, UserOutlined, LinkOutlined, ExperimentOutlined, EyeOutlined, EyeInvisibleOutlined, CopyOutlined, RocketOutlined, InfoCircleOutlined, DownOutlined, CheckCircleOutlined, CloseCircleOutlined, ReloadOutlined, ShoppingCartOutlined, ShoppingOutlined, DollarOutlined } from '@ant-design/icons';
-import { userApi, productLinkApi, sampleProductApi } from '../services/api';
+import { userApi, productLinkApi, sampleProductApi, swapQueueApi } from '../services/api';
 import { canUseChromeRuntime, getStoredExtensionId, pingExtension, requestCartPairs, saveExtensionId } from '../services/extension';
-import type { User, CreateUserDto, ProductLink, SampleProduct, SessionInfo } from '../types';
+import type { User, CreateUserDto, ProductLink, SampleProduct, SessionInfo, SwapQueueItem } from '../types';
 import PrepareProductsModal from '../components/UserManagement/PrepareProductsModal';
 import PreparationDetailModal from '../components/UserManagement/PreparationDetailModal';
 import RealCartDetailModal from '../components/UserManagement/RealCartDetailModal';
 import RealCartActionLog from '../components/UserManagement/RealCartActionLog';
 import type { LogEntry } from '../components/UserManagement/RealCartActionLog';
+import AddToSwapQueueButton from '../components/SwapQueue/AddToSwapQueueButton';
 
 const { Title } = Typography;
 const { TextArea } = Input;
@@ -102,6 +103,9 @@ const UserManagement: React.FC = () => {
   // States cho session list
   const [sessionListMap, setSessionListMap] = useState<Record<string, SessionInfo[]>>({});
   const [sessionListLoadingMap, setSessionListLoadingMap] = useState<Record<string, boolean>>({});
+
+  // States cho swap queue
+  const [swapQueueMap, setSwapQueueMap] = useState<Record<string, SwapQueueItem>>({});
 
   // States cho modal quản lý giỏ hàng và chuẩn bị sản phẩm
   const [managementModalVisible, setManagementModalVisible] = useState(false);
@@ -192,8 +196,25 @@ const UserManagement: React.FC = () => {
     if (users.length > 0) {
       checkAllLiveStatus();
       fetchAllSessionLists();
+      fetchSwapQueueStatus();
     }
   }, [users]);
+
+  // Fetch swap queue status cho tất cả users
+  const fetchSwapQueueStatus = async () => {
+    try {
+      const response = await swapQueueApi.getAll();
+      const items = response.data || [];
+      const map: Record<string, SwapQueueItem> = {};
+      items.forEach((item) => {
+        const userId = item.userId;
+        map[userId] = item;
+      });
+      setSwapQueueMap(map);
+    } catch (error) {
+      // Silent fail
+    }
+  };
 
   const checkAllLiveStatus = async () => {
     // Check live status cho từng user (parallel)
@@ -1231,6 +1252,24 @@ const UserManagement: React.FC = () => {
       },
     },
     {
+      title: 'Cần đảo',
+      key: 'swapQueue',
+      width: 120,
+      align: 'center' as const,
+      render: (_: any, record: User) => {
+        const userId = record.id || record._id;
+        const swapQueueItem = swapQueueMap[userId];
+        
+        if (swapQueueItem) {
+          const statusColor = swapQueueItem.status === 'pending' ? 'orange' : 
+                             swapQueueItem.status === 'processed' ? 'green' : 'red';
+          return <Tag color={statusColor}>Cần đảo</Tag>;
+        }
+        
+        return null;
+      },
+    },
+    {
       title: 'Link chuẩn bị hiện tại',
       key: 'currentCartItems',
       width: 180,
@@ -1313,91 +1352,104 @@ const UserManagement: React.FC = () => {
     {
       title: 'Hành động',
       key: 'action',
-      width: 580,
+      width: 400,
       align: 'center' as const,
       render: (_: any, record: User) => {
         const userId = record.id || record._id;
         const isShowing = showDetailUserId === userId;
         
         return (
-          <Space size={12} style={{ display: 'flex', justifyContent: 'center' }}>
-            {/* Nút Thao tác - chỉ để chọn user */}
-            <Button
-              type="primary"
-              size="small"
-              icon={<DownOutlined />}
-              onClick={() => {
-                setSelectedUserForActions(userId);
-                setManagementModalVisible(true);
-                message.info(`Đang mở quản lý giỏ hàng cho ${record.name || record.username || 'User'}`);
-              }}
-            >
-              Thao tác
-            </Button>
-            
-            {/* Nhóm 2: Thêm Link và Thêm Mẫu */}
-            <Space.Compact>
-              <Button
-                size="small"
-                icon={<LinkOutlined />}
-                onClick={() => handleOpenAddLinkModal(record)}
-              >
-                Thêm Link
-              </Button>
-              <Button
-                size="small"
-                icon={<ExperimentOutlined />}
-                onClick={() => handleOpenAddSampleModal(record)}
-              >
-                Thêm Mẫu
-              </Button>
-            </Space.Compact>
-            
-            {/* Nhóm 3: Check Cookies */}
-            <Button
-              size="small"
-              icon={<ReloadOutlined />}
-              onClick={() => handleCheckCookies(record)}
-              loading={cookieCheckingMap[userId]}
-              type={record.cookieStatus === 'invalid' ? 'primary' : 'default'}
-              danger={record.cookieStatus === 'invalid'}
-            >
-              Check Cookies
-            </Button>
-            
-            {/* Nhóm 4: Xem, Sửa, Xóa */}
-            <Space.Compact>
-              <Button
-                type={isShowing ? 'default' : 'primary'}
-                size="small"
-                icon={isShowing ? <EyeInvisibleOutlined /> : <EyeOutlined />}
-                onClick={() => handleToggleDetails(record)}
-              >
-                {isShowing ? 'Ẩn' : 'Xem'}
-              </Button>
+          <Space direction="vertical" size={8} style={{ width: '100%' }}>
+            {/* Hàng 1: Thao tác, Thêm Link, Thêm Mẫu */}
+            <Space size={8} style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap' }}>
               <Button
                 type="primary"
                 size="small"
-                icon={<EditOutlined />}
-                onClick={() => handleEdit(record)}
+                icon={<DownOutlined />}
+                onClick={() => {
+                  setSelectedUserForActions(userId);
+                  setManagementModalVisible(true);
+                  message.info(`Đang mở quản lý giỏ hàng cho ${record.name || record.username || 'User'}`);
+                }}
               >
-                Sửa
+                Thao tác
               </Button>
-              <Popconfirm
-                title="Bạn có chắc muốn xóa user này?"
-                onConfirm={() => handleDelete(userId)}
-                okText="Có"
-                cancelText="Không"
-              >
+              <Space.Compact>
                 <Button
-                  danger
                   size="small"
-                  icon={<DeleteOutlined />}
+                  icon={<LinkOutlined />}
+                  onClick={() => handleOpenAddLinkModal(record)}
                 >
-                  Xóa
+                  Thêm Link
                 </Button>
-              </Popconfirm>
-            </Space.Compact>
+                <Button
+                  size="small"
+                  icon={<ExperimentOutlined />}
+                  onClick={() => handleOpenAddSampleModal(record)}
+                >
+                  Thêm Mẫu
+                </Button>
+              </Space.Compact>
+            </Space>
+            
+            {/* Hàng 2: Check Cookies, Thêm cần đảo */}
+            <Space size={8} style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap' }}>
+              <Button
+                size="small"
+                icon={<ReloadOutlined />}
+                onClick={() => handleCheckCookies(record)}
+                loading={cookieCheckingMap[userId]}
+                type={record.cookieStatus === 'invalid' ? 'primary' : 'default'}
+                danger={record.cookieStatus === 'invalid'}
+              >
+                Check Cookies
+              </Button>
+              {!swapQueueMap[userId] && (
+                <AddToSwapQueueButton
+                  userId={userId}
+                  size="small"
+                  onSuccess={() => {
+                    fetchSwapQueueStatus();
+                  }}
+                />
+              )}
+            </Space>
+            
+            {/* Hàng 3: Xem, Sửa, Xóa */}
+            <Space size={8} style={{ display: 'flex', justifyContent: 'center' }}>
+              <Space.Compact>
+                <Button
+                  type={isShowing ? 'default' : 'primary'}
+                  size="small"
+                  icon={isShowing ? <EyeInvisibleOutlined /> : <EyeOutlined />}
+                  onClick={() => handleToggleDetails(record)}
+                >
+                  {isShowing ? 'Ẩn' : 'Xem'}
+                </Button>
+                <Button
+                  type="primary"
+                  size="small"
+                  icon={<EditOutlined />}
+                  onClick={() => handleEdit(record)}
+                >
+                  Sửa
+                </Button>
+                <Popconfirm
+                  title="Bạn có chắc muốn xóa user này?"
+                  onConfirm={() => handleDelete(userId)}
+                  okText="Có"
+                  cancelText="Không"
+                >
+                  <Button
+                    danger
+                    size="small"
+                    icon={<DeleteOutlined />}
+                  >
+                    Xóa
+                  </Button>
+                </Popconfirm>
+              </Space.Compact>
+            </Space>
           </Space>
         );
       },

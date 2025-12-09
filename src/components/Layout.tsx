@@ -1,6 +1,6 @@
 import React from 'react';
 import { Layout as AntLayout, Menu, Typography } from 'antd';
-import { UserOutlined } from '@ant-design/icons';
+import { UserOutlined, SwapOutlined } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 const { Header, Content, Sider } = AntLayout;
@@ -19,6 +19,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       key: '/users',
       icon: <UserOutlined />,
       label: 'Quản lý User',
+    },
+    {
+      key: '/swap-queue',
+      icon: <SwapOutlined />,
+      label: 'Swap Queue',
     },
   ];
 

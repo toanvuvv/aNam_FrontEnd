@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { PrepareProductsDto, UpdateLiveSessionConfigDto, RealCartResult, ClearRealCartResult } from '../types';
+import type { PrepareProductsDto, UpdateLiveSessionConfigDto, RealCartResult, ClearRealCartResult, CreateSwapQueueDto, UpdateSwapQueueDto, SwapQueueItem } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://anambackend-production.up.railway.app';
 
@@ -57,6 +57,30 @@ export const sampleProductApi = {
 export const liveSessionConfigApi = {
   getByUserId: (userId: string) => api.get(`/live-session-configs/user/${userId}`),
   update: (userId: string, data: UpdateLiveSessionConfigDto) => api.patch(`/live-session-configs/user/${userId}`, data),
+};
+
+// Swap Queue API
+export const swapQueueApi = {
+  getAll: (status?: 'pending' | 'processed' | 'fail') => 
+    api.get<SwapQueueItem[]>('/swap-queue', { params: status ? { status } : {} }),
+  getByUserId: (userId: string) => 
+    api.get<SwapQueueItem | null>(`/swap-queue/user/${userId}`),
+  getById: (id: string) => 
+    api.get<SwapQueueItem>(`/swap-queue/${id}`),
+  create: (data: CreateSwapQueueDto) => 
+    api.post<SwapQueueItem>('/swap-queue', data),
+  batchCreate: (data: { userIds: string[] }) => 
+    api.post<{ created: number; updated: number; skipped: number }>('/swap-queue/batch', data),
+  update: (id: string, data: UpdateSwapQueueDto) => 
+    api.patch<SwapQueueItem>(`/swap-queue/${id}`, data),
+  updateStatus: (id: string, status: 'pending' | 'processed' | 'fail', errorMessage?: string) => 
+    api.patch<SwapQueueItem>(`/swap-queue/${id}/status`, { status, errorMessage }),
+  delete: (id: string) => 
+    api.delete(`/swap-queue/${id}`),
+  deleteByUserId: (userId: string) => 
+    api.delete(`/swap-queue/user/${userId}`),
+  deleteBatch: (ids: string[]) => 
+    api.delete<{ deleted: number; failed: number }>('/swap-queue/batch', { data: { ids } }),
 };
 
 export default api;
