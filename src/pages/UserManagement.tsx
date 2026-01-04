@@ -20,7 +20,7 @@ import {
   Alert,
   Checkbox,
 } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, UserOutlined, LinkOutlined, ExperimentOutlined, EyeOutlined, EyeInvisibleOutlined, CopyOutlined, RocketOutlined, InfoCircleOutlined, DownOutlined, CheckCircleOutlined, CloseCircleOutlined, ReloadOutlined, ShoppingCartOutlined, ShoppingOutlined, DollarOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, DeleteOutlined, UserOutlined, LinkOutlined, ExperimentOutlined, EyeOutlined, EyeInvisibleOutlined, CopyOutlined, RocketOutlined, InfoCircleOutlined, DownOutlined, CheckCircleOutlined, CloseCircleOutlined, ReloadOutlined, ShoppingCartOutlined, ShoppingOutlined, DollarOutlined, ExportOutlined } from '@ant-design/icons';
 import { userApi, productLinkApi, sampleProductApi, swapQueueApi } from '../services/api';
 import { canUseChromeRuntime, getStoredExtensionId, pingExtension, requestCartPairs, saveExtensionId } from '../services/extension';
 import type { User, CreateUserDto, ProductLink, SampleProduct, SessionInfo, SwapQueueItem } from '../types';
@@ -524,6 +524,28 @@ const UserManagement: React.FC = () => {
   const handleCopyUrl = (url: string) => {
     navigator.clipboard.writeText(url);
     message.success('Đã copy URL');
+  };
+
+  // Export tất cả links ra clipboard
+  const handleExportAllLinks = async () => {
+    if (userProductLinks.length === 0) {
+      message.warning('Không có link nào để export');
+      return;
+    }
+
+    try {
+      // Lấy tất cả URLs, ưu tiên fullUrl, fallback về buildShopeeUrl
+      const urls = userProductLinks.map(link => 
+        link.fullUrl || buildShopeeUrl(link.shopId, link.itemId)
+      );
+      
+      const textToCopy = urls.join('\n');
+      await navigator.clipboard.writeText(textToCopy);
+      message.success(`Đã export ${urls.length} link vào clipboard`);
+    } catch (error) {
+      console.error('Lỗi khi export links:', error);
+      message.error('Lỗi khi export links');
+    }
   };
 
   // Xóa link
@@ -1972,6 +1994,14 @@ const UserManagement: React.FC = () => {
                               </Space>
                             </Space>
                             <Space>
+                              <Button 
+                                type="default" 
+                                size="small" 
+                                icon={<ExportOutlined />}
+                                onClick={handleExportAllLinks}
+                              >
+                                Export kho links
+                              </Button>
                               {selectedLinkIds.length > 0 && (
                                 <Popconfirm
                                   title={`Bạn có chắc muốn xóa ${selectedLinkIds.length} link đã chọn?`}
