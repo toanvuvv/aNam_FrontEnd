@@ -60,12 +60,53 @@ const PrepareProductsModal: React.FC<Props> = ({ visible, onClose, user, onSucce
         throw new Error('Response không đúng định dạng. Vui lòng kiểm tra backend logs.');
       }
 
+      // ============================
+      // LOG CHI TIẾT PHẦN LẤY SẢN PHẨM TỪ LIVE SESSION
+      // ============================
+      try {
+        const summary = apiResult.data.summary;
+        const items = apiResult.data.items || [];
+
+        console.group('[LIVE DEBUG] Kết quả lấy sản phẩm từ live');
+
+        // 1. Những session nào đang được dùng
+        console.log('[LIVE DEBUG] Session IDs:', summary.liveSession?.sessionIds || []);
+        console.log('[LIVE DEBUG] Session titles:', summary.liveSession?.sessionTitles || '');
+
+        // 2. Thống kê tổng quan về sản phẩm từ live
+        console.log('[LIVE DEBUG] Tổng sản phẩm từ live (trước khi map):', summary.liveSession?.totalItemsFromLive);
+        console.log('[LIVE DEBUG] Số sản phẩm map được vào warehouse:', summary.liveSession?.itemsMappedToWarehouse);
+
+        // 3. Danh sách sản phẩm thực tế đã được đưa vào cart từ nguồn LIVE
+        const liveItems = items.filter((item: any) => item.source === 'live');
+        console.log('[LIVE DEBUG] Số sản phẩm nguồn LIVE sau khi qua điều kiện lọc & map vào cart:', liveItems.length);
+
+        if (liveItems.length > 0) {
+          console.log(
+            '[LIVE DEBUG] Top sản phẩm LIVE (tối đa 20 dòng):',
+            liveItems.slice(0, 20).map((i: any) => ({
+              shopId: i.shopId,
+              itemId: i.itemId,
+              productName: i.productName,
+              atc: i.atc,
+              revenue: i.revenue,
+            })),
+          );
+        } else {
+          console.log('[LIVE DEBUG] Không có sản phẩm nào từ LIVE được chọn vào cart.');
+        }
+
+        console.groupEnd();
+      } catch (logErr) {
+        console.error('[LIVE DEBUG] Lỗi khi log thông tin live sessions trên frontend:', logErr);
+      }
+
       setResult(apiResult.data);
 
       if (saveConfig) {
         await liveSessionConfigApi.update(user.id || user._id, values);
       }
-      
+
       // Hiển thị thông báo về việc xóa link không được dùng
       if (apiResult.data.summary?.deletedUnusedLinks && apiResult.data.summary.deletedUnusedLinks > 0) {
         message.warning(
@@ -109,26 +150,26 @@ const PrepareProductsModal: React.FC<Props> = ({ visible, onClose, user, onSucce
       footer={
         result
           ? [
-              <Button key="back" onClick={handleClose}>
-                Hủy
-              </Button>,
-              <Button key="confirm" type="primary" onClick={handleConfirm}>
-                Xác nhận & Cập nhật Cart
-              </Button>,
-            ]
+            <Button key="back" onClick={handleClose}>
+              Hủy
+            </Button>,
+            <Button key="confirm" type="primary" onClick={handleConfirm}>
+              Xác nhận & Cập nhật Cart
+            </Button>,
+          ]
           : [
-              <Button key="back" onClick={handleClose} disabled={loading}>
-                Hủy
-              </Button>,
-              <Button key="submit" type="primary" loading={loading} onClick={handlePrepare}>
-                Bắt đầu chuẩn bị
-              </Button>,
-            ]
+            <Button key="back" onClick={handleClose} disabled={loading}>
+              Hủy
+            </Button>,
+            <Button key="submit" type="primary" loading={loading} onClick={handlePrepare}>
+              Bắt đầu chuẩn bị
+            </Button>,
+          ]
       }
     >
       <Spin spinning={loading || loadingConfig} tip={loadingConfig ? 'Đang tải cấu hình...' : 'Đang chuẩn bị sản phẩm...'}>
         {error && <Alert message="Lỗi" description={error} type="error" showIcon style={{ marginBottom: 16 }} />}
-        
+
         {result ? (
           <div>
             {result.summary?.deletedUnusedLinks && result.summary.deletedUnusedLinks > 0 && (
@@ -159,8 +200,8 @@ const PrepareProductsModal: React.FC<Props> = ({ visible, onClose, user, onSucce
             )}
           </div>
         ) : (
-          <LiveSessionConfigForm 
-            form={form} 
+          <LiveSessionConfigForm
+            form={form}
             initialValues={{}}
             saveConfig={saveConfig}
             onSaveConfigChange={(e) => setSaveConfig(e.target.checked)}
