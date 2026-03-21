@@ -617,6 +617,25 @@ const UserManagement: React.FC = () => {
     }
   };
 
+  // Xóa tất cả links của user
+  const handleDeleteAllLinks = async () => {
+    if (!showDetailUserId) return;
+    try {
+      setLoadingDetails(true);
+      const response = await productLinkApi.deleteAllByUser(showDetailUserId);
+      const deletedCount = (response.data as any)?.deletedCount || 0;
+      message.success(`Đã xóa tất cả ${deletedCount} link trong kho`);
+      setSelectedLinkIds([]);
+      setLinkPage(1);
+      await fetchUserDetails(showDetailUserId);
+      await fetchUsers();
+    } catch (error) {
+      message.error('Lỗi khi xóa tất cả links');
+    } finally {
+      setLoadingDetails(false);
+    }
+  };
+
   // Xóa hàng loạt samples
   const handleDeleteSamplesBatch = async () => {
     if (selectedSampleIds.length === 0) {
@@ -2014,6 +2033,22 @@ const UserManagement: React.FC = () => {
                                   </Button>
                                 </Popconfirm>
                               )}
+                              <Popconfirm
+                                title="Bạn có chắc muốn xóa TẤT CẢ link trong kho?"
+                                description={`Sẽ xóa toàn bộ ${userProductLinks.length} link`}
+                                onConfirm={handleDeleteAllLinks}
+                                okText="Có"
+                                cancelText="Không"
+                              >
+                                <Button
+                                  danger
+                                  size="small"
+                                  icon={<DeleteOutlined />}
+                                  disabled={userProductLinks.length === 0}
+                                >
+                                  Xóa tất cả ({userProductLinks.length})
+                                </Button>
+                              </Popconfirm>
                             </Space>
                           </Space>
                           {paginatedLinks.map((link) => {

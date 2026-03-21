@@ -40,6 +40,7 @@ export const productLinkApi = {
     api.post<{ created: number; skipped: number; createdLinks: any[]; skippedUrls: string[] }>('/product-links/batch', data),
   update: (id: string, data: any) => api.patch(`/product-links/${id}`, data),
   delete: (id: string) => api.delete(`/product-links/${id}`),
+  deleteAllByUser: (userId: string) => api.delete(`/product-links/user/${userId}`),
   assignToCart: (id: string, cartAssignment: string) => 
     api.post(`/product-links/${id}/assign-cart`, { cartAssignment }),
 };
